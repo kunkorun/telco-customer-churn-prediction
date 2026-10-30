@@ -1,315 +1,276 @@
-# 📞 Telco Customer Churn Prediction
+# 📊 Telco Customer Churn Prediction
 
-[![Python](https://img.shields.io/badge/Python-3.x-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Scikit-learn](https://img.shields.io/badge/Scikit--learn-ML-F7931E?logo=scikitlearn&logoColor=white)](https://scikit-learn.org/)
-[![CatBoost](https://img.shields.io/badge/CatBoost-Classifier-FFCC00)](https://catboost.ai/)
+[![Python](https://img.shields.io/badge/Python-3.10+-blue?logo=python&logoColor=white)](https://www.python.org/)
+[![Pandas](https://img.shields.io/badge/Pandas-Data%20Analysis-150458?logo=pandas&logoColor=white)](https://pandas.pydata.org/)
+[![Scikit-learn](https://img.shields.io/badge/Scikit--learn-Machine%20Learning-F7931E?logo=scikitlearn&logoColor=white)](https://scikit-learn.org/)
+[![CatBoost](https://img.shields.io/badge/CatBoost-Gradient%20Boosting-yellow)](https://catboost.ai/)
 
-A machine-learning project focused on predicting customer churn in the telecommunications industry and prioritising customers with higher historical churn risk.
+## 📌 Project Overview
 
-The project compares classification performance and customer-ranking quality to explore how predictive models could support retention planning when resources are limited.
+This project focuses on predicting customer churn for a telecommunications company.
 
----
+The main goal is not only to classify customers as likely to churn or stay, but also to rank them by predicted churn probability. This can help a company with limited retention resources prioritise customers who may require attention first.
 
-## 🎯 Project Overview
+The project covers the full machine learning workflow: data analysis, preprocessing, model training, hyperparameter tuning, evaluation, and customer ranking.
 
-The main objectives are:
+**Important:** The model predicts historical churn patterns. It does not prove that a discount or another retention offer will prevent a customer from leaving or generate additional profit.
 
-* Explore customer churn patterns in a telecommunications dataset.
-* Build machine-learning models to identify customers with higher historical churn risk.
-* Compare Logistic Regression and CatBoost.
-* Evaluate both classification quality and ranking quality.
-* Analyse how effectively models identify churned customers within different top-K customer groups.
+## 🎯 Business Problem
 
-**Important:** The models predict historical churn risk. This project does not prove that a discount or outreach campaign prevents churn or generates a positive financial return.
+A telecommunications company wants to reduce customer churn, but its retention resources are limited. Offering discounts to every customer may be inefficient: some customers would stay anyway, while others may leave despite receiving an offer.
 
----
+The project investigates whether customers can be ranked by churn risk so that a limited group with a higher concentration of actual churn cases can be prioritised.
 
-## 💼 Business Problem
+The business question is:
 
-A telecommunications company wants to identify customers who are more likely to leave.
+**How effectively can the model identify and rank customers who are likely to churn?**
 
-When retention resources are limited, contacting every customer may not be practical. A risk ranking can help prioritise customers for further retention actions.
+The project does not evaluate the causal effect of retention campaigns or calculate their financial return.
 
-This project addresses two questions:
+## 📂 Dataset
 
-1. How accurately can a model predict customer churn?
-2. If the company can focus on only a limited number of customers, how effectively can the model rank customers who later appear as churned in the data?
+The project uses the [Telco Customer Churn dataset](https://www.kaggle.com/datasets/blastchar/telco-customer-churn).
 
----
+- **Rows:** 7,043 customers
+- **Columns:** 21
+- **Target:** `Churn`
+- **Identifier:** `customerID`
 
-## 📊 Dataset
+The `customerID` column was excluded from modelling because it identifies customers but does not describe their characteristics.
 
-The project uses the **Telco Customer Churn** dataset from Kaggle.
+The target variable was converted to binary format:
 
-* Number of records: **7,043**
-* Number of columns: **21**
-* Target variable: `Churn`
+- `No` → 0
+- `Yes` → 1
 
-The dataset contains information about:
-* Customer demographics.
-* Subscribed services.
-* Contract types.
-* Billing information.
-* Customer churn status.
+## 🔍 Exploratory Data Analysis
 
-**Target variable:**
-* `Yes` — the customer left the company.
-* `No` — the customer remained with the company.
+The EDA was performed on the training set.
 
-The `customerID` column was excluded from model features because it is an identifier rather than a meaningful customer characteristic.
+### Contract Type
 
-**Dataset source:** [Kaggle — Telco Customer Churn](<ADD_KAGGLE_DATASET_URL>)
+| Contract | Churn Rate |
+|---|---:|
+| Month-to-month | 42.75% |
+| One year | 11.08% |
+| Two year | 2.87% |
 
----
+Customers with month-to-month contracts showed a substantially higher churn rate. The rate was approximately 15 times higher than for customers with two-year contracts.
+
+### Customer Tenure
+
+| Tenure | Churn Rate |
+|---|---:|
+| 0–12 months | 47.32% |
+| 13–24 months | 28.61% |
+| 25–36 months | 20.93% |
+| 37–48 months | 19.48% |
+| 49–60 months | 15.35% |
+| 61–72 months | 6.81% |
+
+The analysis showed an inverse relationship between customer tenure and churn rate: customers with shorter tenure churned more frequently.
+
+### Monthly Charges
+
+Customers who churned had higher average and median monthly charges:
+
+- Average: 74.86 versus 61.34
+- Median: 79.95 versus 64.40
+
+However, the distributions overlapped, so monthly charges alone could not clearly distinguish churned customers from retained ones.
+
+### Financial Scale of Churn
+
+Month-to-month contracts accounted for approximately 87.14% of the total monthly charges associated with churned customers in the training set.
+
+This figure describes monthly charges associated with churned customers. It should not be interpreted as net profit or confirmed financial loss because service costs, margins, and future customer value are not available.
+
+### Outlier Check
+
+Potential outliers in `tenure`, `MonthlyCharges`, and `TotalCharges` were checked using the IQR method. No observations were found beyond the calculated bounds, so all records were retained.
 
 ## 🧹 Data Preparation
 
-The data preparation stage included:
+- The dataset was split into training and test sets using an 80/20 stratified split.
+- `random_state=42` was used for reproducibility.
+- The training set contains 5,634 observations; the test set contains 1,409.
+- Eleven blank values in `TotalCharges` were found among customers with `tenure = 0`. They were filled with zero based on the assumption that these customers had not yet accumulated charges.
+- `tenure_group` was created for EDA but was not used as a model feature.
 
-* Auditing data types, missing values, duplicate records, target distribution, and categorical values.
-* Identifying 11 blank strings in `TotalCharges`.
-* Checking the corresponding records and finding that all had `tenure = 0`.
-* Converting blank strings to numeric missing values and replacing them with `0`, based on the assumption that no total charges had accumulated yet.
+For Logistic Regression, preprocessing was organised with `Pipeline` and `ColumnTransformer`:
 
-This replacement is a data-based assumption, not a verified original billing amount.
+- Numerical features: median imputation and `StandardScaler`.
+- Categorical features: most-frequent imputation and `OneHotEncoder(handle_unknown="ignore")`.
 
-### Train-Test Split
+This setup ensures that preprocessing parameters are fitted only on the training portion of each cross-validation fold.
 
-* Training set: **5,634 records**
-* Test set: **1,409 records**
-* Split: 80/20, stratified by target, `random_state=42`
+CatBoost was trained using native categorical features.
 
-The training set was used for exploratory analysis and model development. The test set was reserved for final evaluation.
+## 🤖 Modelling
 
-I also created `tenure_group` for exploratory analysis only and excluded it from model training.
+The following models and approaches were evaluated:
 
----
+- `DummyClassifier` — a simple baseline that always predicts the majority class.
+- Logistic Regression — the first working classification baseline.
+- CatBoost — a model using native categorical feature processing.
+- `RandomizedSearchCV` — used to tune CatBoost hyperparameters with Average Precision as the search metric.
 
-## 🔍 Exploratory Data Analysis (EDA)
+Stratified five-fold cross-validation was used during model development. The held-out test set was reserved for final evaluation.
 
-The exploratory analysis focused on identifying customer characteristics associated with churn.
+### Cross-Validation Results
 
-Main areas of investigation:
-* Churn distribution.
-* Churn by contract type.
-* Customer tenure and churn patterns.
-* Monthly charges and other financial summaries.
-* Relationships between customer services and churn.
-
-### Key Observations
-
-* Churn was associated with customer contract type and tenure.
-* Month-to-month customers had a substantially higher observed churn rate than customers on longer contracts.
-
-These patterns helped guide the modelling stage and the interpretation of model predictions.
-
----
-
-## ⚙️ Workflow & Modelling
-
-The project followed several stages:
-
-1. **Data audit and cleaning** — reviewed data quality, types, blanks, duplicates, and target distribution.
-2. **Exploratory data analysis** — explored churn patterns across customer characteristics and billing information.
-3. **Baseline model** — trained Logistic Regression in a preprocessing pipeline.
-4. **Preprocessing** — applied median imputation and scaling to numerical features, and imputation and one-hot encoding to categorical features.
-5. **Baseline comparison** — compared Logistic Regression with `DummyClassifier` to check whether the model learned a useful signal beyond always predicting the majority class.
-6. **CatBoost** — trained a classifier using native categorical-feature support.
-7. **Hyperparameter tuning** — used `RandomizedSearchCV` with Average Precision as the selection metric.
-8. **Cross-validation** — re-evaluated the selected configuration using five-fold stratified cross-validation.
-9. **Business-oriented ranking analysis** — compared out-of-fold customer risk rankings using `Precision@K` and `Recall@K` at several target-group sizes.
-10. **Final evaluation** — trained the selected configurations on the full training set and evaluated them once on the held-out test set.
-
----
-
-## 🤖 Models & Results
-
-Two models were compared:
-
-* Logistic Regression — baseline model.
-* Tuned CatBoost — model with native categorical-feature support and hyperparameter tuning.
-
-### Test-Set Classification Metrics
-
-Precision, Recall, and F1-score use the default classification threshold of 0.5.
-
-| **Metric** | **Logistic Regression** | **Tuned CatBoost** |
+| Metric | Logistic Regression | Initial CatBoost |
 |---|---:|---:|
-| ROC-AUC | 0.842 | **0.846** |
-| Average Precision | 0.634 | **0.669** |
-| Precision | 0.657 | **0.670** |
-| Recall | **0.559** | 0.521 |
-| F1-score | **0.604** | 0.586 |
+| ROC-AUC | 0.846 ± 0.013 | 0.845 ± 0.010 |
+| Average Precision | 0.662 ± 0.019 | 0.660 ± 0.023 |
+| Precision | 0.653 ± 0.026 | 0.665 ± 0.043 |
+| Recall | 0.543 ± 0.041 | 0.513 ± 0.020 |
+| F1-score | 0.592 ± 0.030 | 0.578 ± 0.024 |
 
-### Main Observations
+The initial CatBoost configuration did not show a clear advantage over Logistic Regression. Hyperparameter tuning was then performed to improve ranking quality.
 
-* CatBoost achieved higher ROC-AUC, Average Precision, and Precision.
-* Logistic Regression achieved higher Recall and F1-score at the 0.5 threshold.
-* Neither model performed best across every metric.
-* The preferred model depends on how predictions will be used.
+After tuning, mean Average Precision increased from 0.660 to 0.672, while mean ROC-AUC increased from 0.845 to 0.851.
 
----
+## 📈 Customer Ranking
 
-## 📉 Confusion Matrix Analysis
+Since the business task involves prioritising a limited number of customers, model quality was also evaluated using out-of-fold predictions and Precision@K.
 
-Rows represent actual labels and columns represent predicted labels.
+Each training-set customer received a prediction from a model that had not been trained on that customer's row.
 
-### Logistic Regression
+### Out-of-Fold Ranking Results
 
-| | **Predicted: No** | **Predicted: Yes** |
-|---|---:|---:|
-| Actual: No | 926 | 109 |
-| Actual: Yes | 165 | 209 |
-
-### Tuned CatBoost
-
-| | **Predicted: No** | **Predicted: Yes** |
-|---|---:|---:|
-| Actual: No | 939 | 96 |
-| Actual: Yes | 179 | 195 |
-
-### Key Findings
-
-* CatBoost produced fewer false positives at the 0.5 threshold.
-* Logistic Regression identified more actual churn cases.
-* Threshold-based classification metrics and risk-ranking analysis measure different aspects of model performance.
-
----
-
-## 🎯 Business-Oriented Evaluation: Ranking High-Risk Customers
-
-A classification model can be evaluated not only by its predicted labels, but also by how it ranks customers according to their predicted churn probability.
-
-To simulate limited retention capacity, I ranked customers by predicted churn probability and evaluated the top-K groups.
-
-The table shows how many customers with an actual `Churn = Yes` label were found among the selected customers.
-
-| **K customers selected** | **LR churn cases found** | **CatBoost churn cases found** | **LR Precision@K** | **CatBoost Precision@K** |
+| K | LR: Churn Customers Found | CatBoost: Churn Customers Found | LR Precision@K | CatBoost Precision@K |
 |---:|---:|---:|---:|---:|
-| 100 | 74 | 80 | 0.740 | **0.800** |
-| 200 | 145 | 146 | 0.725 | **0.730** |
-| 300 | 198 | 199 | 0.660 | **0.663** |
-| 400 | 234 | 239 | 0.585 | **0.598** |
-| 500 | 269 | 278 | 0.538 | **0.556** |
+| 100 | 89 | 88 | 0.890 | 0.880 |
+| 200 | 165 | 174 | 0.825 | 0.870 |
+| 300 | 244 | 261 | 0.813 | 0.870 |
+| 500 | 382 | 391 | 0.764 | 0.782 |
+| 1,000 | 696 | 691 | 0.696 | 0.691 |
 
-### Interpretation
+Both models concentrated actual churn cases more effectively than random selection.
 
-* CatBoost achieved higher Precision@K for all tested group sizes.
-* The differences at K = 200 and K = 300 were relatively small.
-* Among the top 100 customers selected by CatBoost, 80 had an actual churn label in the test set.
-* These results support using CatBoost as the preferred model for the customer-prioritisation scenario in this project.
+CatBoost performed better for groups of 200, 300, and 500 customers, while Logistic Regression had a small advantage at K = 100 and K = 1,000. Therefore, the preferred model depends partly on the size of the group the company can handle.
 
-**Important:** These results measure historical churn identification. They do not show that contacting these customers or offering discounts would prevent churn.
+The range of 200–400 customers was considered as a preliminary business scenario, not as a proven optimal group size.
 
----
+## 🧪 Final Test Results
+
+The selected models were evaluated on the held-out test set.
+
+| Metric | Logistic Regression | Tuned CatBoost |
+|---|---:|---:|
+| ROC-AUC | 0.842 | 0.846 |
+| Average Precision | 0.634 | 0.669 |
+| Precision | 0.657 | 0.670 |
+| Recall | 0.559 | 0.521 |
+| F1-score | 0.604 | 0.586 |
+
+At the standard classification threshold of 0.5, Logistic Regression achieved higher Recall and F1-score. CatBoost achieved higher ROC-AUC, Average Precision, and Precision.
+
+### Confusion Matrix Comparison
+
+| Result | Logistic Regression | Tuned CatBoost |
+|---|---:|---:|
+| True Negatives | 926 | 939 |
+| False Positives | 109 | 96 |
+| False Negatives | 165 | 179 |
+| True Positives | 209 | 195 |
+
+CatBoost produced fewer false positives but also missed more actual churn cases at the 0.5 threshold.
+
+### Test-Set Ranking Results
+
+| K | LR: Churn Customers Found | CatBoost: Churn Customers Found | LR Precision@K | CatBoost Precision@K |
+|---:|---:|---:|---:|---:|
+| 100 | 74 | 80 | 0.740 | 0.800 |
+| 200 | 145 | 146 | 0.725 | 0.730 |
+| 300 | 198 | 199 | 0.660 | 0.663 |
+| 400 | 234 | 239 | 0.585 | 0.598 |
+| 500 | 269 | 278 | 0.538 | 0.556 |
+
+CatBoost achieved higher Precision@K for all tested group sizes, although the differences were relatively small at K = 200 and K = 300.
 
 ## 💡 Key Findings
 
-* Month-to-month customers had a substantially higher observed churn rate than customers on longer contracts.
-* Logistic Regression provided a useful baseline and outperformed the majority-class `DummyClassifier` on the selected ranking and classification metrics.
-* Hyperparameter tuning improved the cross-validation results of the initial CatBoost configuration.
-* Tuned CatBoost achieved higher ROC-AUC, Average Precision, and Precision on the held-out test set.
-* Logistic Regression achieved higher Recall and F1-score at the default 0.5 threshold.
-* CatBoost ranked customers more effectively by Precision@K across all tested group sizes.
-* For the simulated limited-capacity prioritisation scenario, CatBoost was selected as the preferred model.
+- Month-to-month customers showed the highest churn rate in the training set.
+- Shorter customer tenure was associated with a higher churn rate.
+- Customers who churned had higher average and median monthly charges.
+- Logistic Regression provided a strong and interpretable baseline.
+- The initial CatBoost configuration did not outperform Logistic Regression clearly, but hyperparameter tuning improved its ranking metrics.
+- On the held-out test set, tuned CatBoost achieved higher Average Precision and better Precision@K across the tested group sizes.
+- Logistic Regression achieved higher Recall and F1-score at the standard classification threshold.
 
----
+**Tuned CatBoost was selected as the preferred model for the customer-prioritisation scenario**, because ranking customers under a limited resource constraint is the main objective of the project.
 
-## ⚠️ Limitations & Next Steps
+## ⚠️ Limitations and Further Improvements
 
-The dataset contains customer characteristics and billing information, but it does not provide all the economic information needed to estimate the profitability of retention actions.
-
-Missing information includes:
-* Contact or campaign costs.
-* Discount and offer costs.
-* Customer-level contribution margin or lifetime value.
-* Actual effectiveness of a retention offer.
-
-Therefore, this project does not calculate ROI and does not establish that a retention campaign would be profitable.
+- The dataset contains historical churn outcomes, not the results of retention campaigns.
+- A high predicted churn probability does not mean that a customer can be retained with a discount or another offer.
+- The project does not establish a causal effect of retention activities.
+- Financial ROI cannot be calculated without information about customer value, service margins, campaign costs, and retention effectiveness.
+- The preferred size of the priority group should be determined using actual operational and financial constraints.
+- A controlled experiment or campaign outcome data would be needed to evaluate whether retention offers change customer behaviour.
 
 Possible next steps:
-* Combine churn-risk rankings with customer economics.
-* Evaluate retention actions through a controlled experiment, such as an A/B test.
-* Determine an operational cutoff based on company capacity, campaign costs, and the expected value of retaining a customer.
 
----
+- Evaluate different classification thresholds.
+- Test the model on new data.
+- Add campaign outcomes and customer-value information when available.
+- Estimate retention costs and potential financial impact.
+- Run a controlled experiment to measure the effect of retention offers.
+
+## 🛠️ Technologies
+
+- Python
+- Pandas
+- NumPy
+- Matplotlib / Seaborn
+- Scikit-learn
+- CatBoost
+- Jupyter Notebook
+
+## 🚀 How to Run
+
+1. Clone the repository:
+
+   ```bash
+   git clone <YOUR_GITHUB_REPOSITORY_URL>
+   cd <PROJECT_FOLDER>
+   ```
+
+2. Install the required libraries:
+
+   ```bash
+   pip install pandas numpy matplotlib seaborn scikit-learn catboost jupyter
+   ```
+
+3. Download the dataset from [Kaggle — Telco Customer Churn](https://www.kaggle.com/datasets/blastchar/telco-customer-churn).
+
+4. Place the dataset files in the project directory.
+
+5. Open and run the notebook:
+
+   ```bash
+   jupyter notebook
+   ```
 
 ## 📁 Project Structure
 
 ```text
-Telco-Customer-Churn/
-├── data/        # Dataset files
-├── docs/        # Business logic and project documentation
-├── notebooks/   # Analysis and modelling notebook
-└── README.md    # Project overview and reproduction instructions
+.
+├── data/
+│   └── WA_Fn-UseC_-Telco-Customer-Churn.csv
+├── notebooks/
+│   └── telco_customer_churn.ipynb
+└── README.md
 ```
 
-Individual notebook and documentation filenames can be added as the project structure becomes more specific.
+*The structure above is an example; adjust file and folder names to match the actual repository.*
+
+## 🔗 Links
+
+- [Kaggle Dataset — Telco Customer Churn](https://www.kaggle.com/datasets/blastchar/telco-customer-churn)
 
 ---
 
-## ▶️ How to Run
-
-### 1. Clone the repository
-
-```bash
-git clone <YOUR_GITHUB_REPOSITORY_URL>
-cd Telco-Customer-Churn
-```
-
-### 2. Create and activate a virtual environment
-
-```bash
-python -m venv venv
-```
-
-Windows:
-
-```bash
-venv\Scripts\activate
-```
-
-macOS / Linux:
-
-```bash
-source venv/bin/activate
-```
-
-### 3. Install dependencies
-
-```bash
-pip install pandas numpy matplotlib seaborn scikit-learn catboost jupyter
-```
-
-### 4. Download the dataset
-
-Download the Telco Customer Churn dataset from the [Kaggle source page](<ADD_KAGGLE_DATASET_URL>).
-
-Place the file `WA_Fn-UseC_-Telco-Customer-Churn.csv` in the `data/` directory.
-
-### 5. Run the notebook
-
-```bash
-jupyter notebook
-```
-
-Open the notebook in `notebooks/` and run the cells from top to bottom.
-
-**Note:** A `requirements.txt` file has not been added yet. The installation command above lists the main packages used in the project.
-
----
-
-## 🔗 Links & Resources
-
-* [GitHub Repository](<YOUR_GITHUB_REPOSITORY_URL>)
-* [Kaggle Dataset](<ADD_KAGGLE_DATASET_URL>)
-* [Scikit-learn Documentation](https://scikit-learn.org/stable/)
-* [CatBoost Documentation](https://catboost.ai/docs/)
-* [Pandas Documentation](https://pandas.pydata.org/docs/)
-* [Jupyter Documentation](https://docs.jupyter.org/)
-
----
-
-**Project workflow:**
-
-Data Audit → EDA → Preprocessing → Baseline Model → CatBoost → Hyperparameter Tuning → Ranking Evaluation → Final Test Evaluation
+**Project workflow:** Business Understanding → EDA → Data Preprocessing → Baseline Model → Model Comparison → Hyperparameter Tuning → Customer Ranking → Final Evaluation
